@@ -2,7 +2,7 @@
 
 ## Estado actual
 
-Servicio funcional y en producción. Un solo endpoint (`POST /api/contact`), dos canales de notificación (email vía Resend, WhatsApp vía Meta Cloud API), sin persistencia. Deploy vía `nolost/deploy.ps1` a `nolost-contact.service` (systemd) detrás de nginx.
+Servicio funcional y en producción. Un solo endpoint (`POST /api/contact`), dos canales de notificación (email vía Resend, WhatsApp vía Meta Cloud API), sin persistencia.
 
 ## Próximo paso recomendado
 

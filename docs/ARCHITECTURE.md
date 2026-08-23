@@ -7,7 +7,7 @@ Estado real de la arquitectura de `contact-api`. No aspiracional.
 Servicio HTTP de un solo propósito: recibir un formulario de contacto y notificarlo por dos canales (email y WhatsApp), en paralelo, sin persistencia.
 
 ```
-Cliente (nolost frontend)
+Cliente (frontend público)
         │  POST /api/contact { name, email, message }
         ▼
    contact-api (Express)
@@ -34,7 +34,3 @@ No hay reintentos ni cola — si un canal falla, el request al cliente refleja e
 ## Estado y persistencia
 
 Ninguno. No hay base de datos. Cada request es independiente; no se guarda historial de mensajes de contacto en este servicio.
-
-## Deploy
-
-Ver `README.md` — sección "Cómo corre en producción". Proceso `systemd` (`nolost-contact.service`), expuesto vía nginx bajo `nolost` (`micasachurch.co/contact/`), deploy manual vía `nolost/deploy.ps1`.

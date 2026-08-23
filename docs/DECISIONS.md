@@ -2,11 +2,11 @@
 
 Decisiones tomadas en este repo y por qué. No incluye decisiones triviales.
 
-## Servicio separado de `nolost`, no un módulo del backend
+## Servicio separado del backend principal, no un módulo del monolito
 
-**Decisión:** `contact-api` es un repo y proceso independiente, no vive dentro del monolito de `nolost`.
+**Decisión:** `contact-api` es un repo y proceso independiente, no vive dentro del monolito del backend principal.
 
-**Por qué:** el formulario de contacto es público (sin auth) y no depende de ninguna entidad del dominio de `nolost` (no toca `person`, `node`, etc.). Aislarlo reduce superficie de ataque del backend principal y permite deployarlo/reiniciarlo sin afectar el resto de `nolost`. Antes vivía en `nolost/contact/`; se movió a la raíz del workspace por esto.
+**Por qué:** el formulario de contacto es público (sin auth) y no depende de ninguna entidad del dominio del backend principal (no toca `person`, `node`, etc.). Aislarlo reduce superficie de ataque del backend principal y permite deployarlo/reiniciarlo sin afectar el resto del sistema.
 
 ## Dos canales en paralelo con fallo independiente, sin cola
 

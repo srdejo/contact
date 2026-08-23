@@ -4,11 +4,11 @@ Reglas de trabajo para este repo (`contact-api`, descrito en `README.md`). Léel
 
 ## Qué es este proyecto
 
-Microservicio Node/Express que recibe el formulario público de contacto de `nolost` (Mi Casa Church) y lo reenvía por email (Resend) y WhatsApp (Meta Cloud API). Antes vivía dentro de `nolost/contact/`; se separó porque tiene su propio proceso y ciclo de deploy en producción, independiente del backend de `nolost`.
+Microservicio Node/Express que recibe el formulario público de contacto del frontend principal (Mi Casa Church) y lo reenvía por email (Resend) y WhatsApp (Meta Cloud API). Es un servicio independiente, con su propio proceso y ciclo de deploy en producción, separado del backend principal.
 
 Para más detalle ver, en este orden:
 1. `docs/ARCHITECTURE.md` — cómo está construido hoy.
-2. `docs/DECISIONS.md` — por qué se separó de `nolost` y otras decisiones tomadas.
+2. `docs/DECISIONS.md` — decisiones tomadas.
 3. `docs/ROADMAP.md` — qué falta, si algo.
 4. `docs/PROGRESS.md` — estado actual.
 
@@ -27,6 +27,5 @@ Para más detalle ver, en este orden:
 
 ## Proceso de trabajo
 
-- Antes de cambiar el contrato de `POST /api/contact`, revisar `README.md` — el frontend de `nolost` depende del shape exacto de la respuesta (`results`/`errors`, códigos 200/207/400).
+- Antes de cambiar el contrato de `POST /api/contact`, revisar `README.md` — el frontend depende del shape exacto de la respuesta (`results`/`errors`, códigos 200/207/400).
 - Actualizar `docs/PROGRESS.md` al cerrar una tarea del roadmap.
-- Cambios al proceso de deploy (`nolost-contact.service`, nginx) documentarlos en `README.md` (sección "Cómo corre en producción"), no solo en el historial de chat.
