@@ -2,7 +2,7 @@
 
 `contact-api` es un servicio pequeño y ya funcional en producción. No tiene fases de desarrollo pendientes — este roadmap registra mejoras futuras posibles, no un plan de construcción.
 
-Estado: 🟢 en producción, funcionalmente completo para su alcance actual.
+Estado: 🟢 en producción, funcionalmente completo para su alcance actual (incluye `POST /api/send`, agregado 2026-08-24 para consumo interno desde `hotel-backend` — ver `docs/PROGRESS.md`).
 
 ## Posibles mejoras futuras (no priorizadas)
 

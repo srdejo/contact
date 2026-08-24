@@ -8,6 +8,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+
+function requireLocalhost(req, res, next) {
+  const ip = req.socket.remoteAddress;
+  if (!LOOPBACK_ADDRESSES.has(ip)) {
+    return res.status(403).json({ error: 'forbidden' });
+  }
+  next();
+}
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
@@ -45,6 +55,21 @@ app.post('/api/contact', async (req, res) => {
 
   const hasErrors = Object.keys(errors).length > 0;
   res.status(hasErrors ? 207 : 200).json({ results, errors: hasErrors ? errors : undefined });
+});
+
+app.post('/api/send', requireLocalhost, async (req, res) => {
+  const { to, subject, html, from } = req.body || {};
+
+  if (!to || !subject || !html) {
+    return res.status(400).json({ error: 'to, subject y html son requeridos' });
+  }
+
+  try {
+    await sendEmail({ to, subject, html, from });
+    res.json({ status: 'ok' });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
 });
 
 const port = process.env.PORT || 3000;

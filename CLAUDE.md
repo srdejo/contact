@@ -29,3 +29,4 @@ Para más detalle ver, en este orden:
 
 - Antes de cambiar el contrato de `POST /api/contact`, revisar `README.md` — el frontend depende del shape exacto de la respuesta (`results`/`errors`, códigos 200/207/400).
 - Actualizar `docs/PROGRESS.md` al cerrar una tarea del roadmap.
+- Si un ítem del roadmap no tiene criterio de aceptación claro, no lo ejecutes a ciegas — regístralo como bloqueo de definición en `docs/PROGRESS.md` y pregunta al usuario en vez de asumir el alcance.
