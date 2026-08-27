@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { sendEmail } from './resend.client.js';
+import { sendGmailEmail } from './gmail.client.js';
 import { sendWhatsAppMessage } from './whatsapp.client.js';
 
 const app = express();
@@ -65,7 +66,7 @@ app.post('/api/send', requireLocalhost, async (req, res) => {
   }
 
   try {
-    await sendEmail({ to, subject, html, from });
+    await sendGmailEmail({ to, subject, html, from });
     res.json({ status: 'ok' });
   } catch (err) {
     res.status(502).json({ error: err.message });
