@@ -12,12 +12,17 @@ Servicio funcional y en producción. Endpoint público `POST /api/contact` (dos 
 
 ## Próximo paso recomendado
 
-1. **[externo] Falta cargar `GMAIL_USER`/`GMAIL_APP_PASSWORD` en el `.env` real del VPS** y correr `npm install` ahí (se agregó la dependencia `nodemailer`) antes de reiniciar `contact.service` — sin esto `/api/send` va a fallar con `502`. Ver `.env.example`/`README.md` para el detalle.
-2. Después de cargar las credenciales: probar `POST /api/send` real (loopback) y confirmar que el correo llega con el remitente Gmail esperado.
+1. **Resuelto (2026-09-02)**: credenciales de Gmail cargadas en el `.env` del VPS, `contact` envía correo por Gmail en producción. El usuario confirma que `/api/send` funciona por loopback y que el acceso público (`/api/contact`) también responde correctamente.
+2. **Verificado (2026-09-02)**: el corte de nginx sobrevivió la migración de dominio del 2026-08-31. Comprobado desde fuera del VPS contra el vhost nuevo (`nolost.micasachurch.co`), con tres peticiones que se controlan entre sí:
+   - `POST /contact/api/send` -> **404 servido por nginx** (cuerpo = página de error de nginx). El corte está activo y la petición nunca llega a Node.
+   - `POST /contact/health` -> 404 servido por **Express** (`Cannot POST /health`). Prueba que el proxy sí reenvía a Node en las demás rutas, es decir que el 404 anterior es el bloque `location`, no una caída del proxy.
+   - `POST /contact/api/contact` -> 400 con `{"error":"name, email y message son requeridos"}`. El endpoint público responde correctamente.
+   Además, el dominio viejo (`micasachurch.co/contact/...`) ya no proxya a este servicio en absoluto: nginx responde 405 en todas esas rutas porque ahora sirve estáticos del proyecto `micasachurch`. No quedó ruta huérfana.
 3. Fuera de eso, ninguno pendiente. Revisar `docs/ROADMAP.md` si surge una necesidad concreta (rate limiting, reintentos, logging) antes de agregar trabajo especulativo.
 
 ## Bloqueos o problemas conocidos
 
 _Convención: prefijar cada bloqueo con `[definición]` (el roadmap no da criterio de aceptación claro) o `[externo]` (credenciales, infraestructura, dependencia de otro equipo) para distinguir el origen._
 
-- `[externo]` `GMAIL_USER`/`GMAIL_APP_PASSWORD` no están cargados todavía en el `.env` de producción — ver "Próximo paso recomendado".
+- ~~`[externo]` `GMAIL_USER`/`GMAIL_APP_PASSWORD` no cargados en producción~~ — **resuelto 2026-09-02**, ver "Próximo paso recomendado".
+- ~~`[externo]` Sin verificar: el corte de nginx para `/contact/api/send`~~ — **verificado 2026-09-02**, sigue activo tras la migración. Ver punto 2 de "Próximo paso recomendado". No quedan bloqueos abiertos en este servicio.
