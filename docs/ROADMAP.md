@@ -44,6 +44,13 @@ loopback y ese endpoint **no** es alcanzable desde internet.
       por el usuario — 2026-09-02.
 - [x] Segundo consumidor en producción: el módulo `contact` de `consulting`
       (`ContactApiDiagnosticoNotifier`), además de `hotel-backend`.
+- [x] `fromName` opcional en `POST /api/send`, para que cada servicio firme con su
+      propio nombre — 2026-09-07. Antes todos los correos salían con el `GMAIL_FROM`
+      del `.env` ("Leo Pura Distribución"), así que una invitación de Mi Casa Church
+      llegaba firmada por otro proyecto. La dirección se sigue resolviendo aquí, que es
+      el único que conoce la cuenta que envía; el llamador sólo declara quién es.
+      Verificado con 6 pruebas sobre `resolveFrom` (incluida la de inyección de
+      cabeceras por saltos de línea) y con el endpoint corriendo.
 
 ## Etapa 3 — WhatsApp por Baileys y cierre del servicio 🟡
 
