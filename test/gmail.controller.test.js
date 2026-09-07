@@ -73,3 +73,30 @@ test('502 cuando el envio falla', async () => {
   assert.equal(res.statusCode, 502);
   assert.equal(res.cuerpo.error, 'SMTP caido');
 });
+
+test('fromName llega al servicio tal cual', async () => {
+  const res = respuestaFalsa();
+  let recibido = null;
+
+  await createGmailController({
+    gmailService: {
+      send: async (payload) => {
+        recibido = payload;
+      },
+    },
+  }).send(
+    {
+      body: {
+        to: 'a@example.com',
+        subject: 'hola',
+        html: '<p>x</p>',
+        fromName: 'Mi Casa Church',
+      },
+    },
+    res
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(recibido.fromName, 'Mi Casa Church');
+  assert.equal(recibido.from, undefined);
+});
