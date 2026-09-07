@@ -4,8 +4,11 @@ import cors from 'cors';
 
 import { sendEmail } from './clients/resend.client.js';
 import { sendGmailEmail } from './clients/gmail.client.js';
-
 import * as whatsappClient from './clients/whatsapp.client.js';
+
+import { createContactController } from './controllers/contact.controller.js';
+import { createGmailController } from './controllers/gmail.controller.js';
+import { createWhatsAppController } from './controllers/whatsapp.controller.js';
 
 const app = express();
 
@@ -34,124 +37,47 @@ function requireLocalhost(req, res, next) {
   next();
 }
 
+// --- composicion: los clientes son el transporte, los servicios el contrato ---
+// Los controladores dependen de estos objetos, no de los modulos cliente, para
+// que la ruta se pueda probar con un doble y para que cambiar de proveedor
+// (Resend -> Gmail, Meta -> Baileys) no obligue a tocar la capa web.
+const emailService = {
+  send: (payload) => sendEmail(payload),
+};
+
+const gmailService = {
+  send: (payload) => sendGmailEmail(payload),
+};
+
+const whatsappService = {
+  send: (payload) => whatsappClient.sendMessage(payload),
+  status: () => whatsappClient.getStatus(),
+};
+
+const contactController = createContactController({
+  emailService,
+  whatsappService,
+  whatsappToNumber: () => process.env.WHATSAPP_TO_NUMBER,
+});
+
+const gmailController = createGmailController({ gmailService });
+
+const whatsappController = createWhatsAppController({ whatsappService });
+
+// --- rutas ---------------------------------------------------------------
 app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
   });
 });
 
-app.post('/api/contact', requireLocalhost, async (req, res) => {
-  const { name, email, message } = req.body || {};
+app.post('/api/contact', requireLocalhost, contactController.send);
 
-  if (!name || !email || !message) {
-    return res.status(400).json({
-      error: 'name, email y message son requeridos',
-    });
-  }
+app.get('/api/whatsapp/status', requireLocalhost, whatsappController.status);
 
-  const html = `
-    <p><strong>Nombre:</strong> ${name}</p>
-    <p><strong>Email:</strong> ${email}</p>
-    <p><strong>Mensaje:</strong></p>
-    <p>${message}</p>
-  `;
+app.post('/api/whatsapp/send', requireLocalhost, whatsappController.send);
 
-  const results = { email: null, whatsapp: null };
-  const errors = {};
-
-  try {
-    const emailResult = await sendEmail({
-      subject: `Nuevo contacto de ${name}`,
-      html,
-    });
-
-    // El SDK de Resend no lanza: devuelve { data, error }.
-    if (emailResult?.error) {
-      throw new Error(emailResult.error.message);
-    }
-
-    results.email = emailResult;
-  } catch (err) {
-    errors.email = err.message;
-  }
-
-  try {
-    results.whatsapp =
-      await whatsappClient.sendMessage({
-        phone: process.env.WHATSAPP_TO_NUMBER,
-        text: `Nuevo contacto:\nNombre: ${name}\nEmail: ${email}\nMensaje: ${message}`,
-      });
-  } catch (err) {
-    errors.whatsapp = err.message;
-  }
-
-  const hasErrors = Object.keys(errors).length > 0;
-
-  res.status(hasErrors ? 207 : 200).json({
-    results,
-    errors: hasErrors ? errors : undefined,
-  });
-});
-
-app.get('/api/whatsapp/status', requireLocalhost, (_req, res) => {
-  res.json(
-    whatsappClient.getStatus()
-  );
-});
-
-app.post('/api/whatsapp/send', requireLocalhost, async (req, res) => {
-  const { phone, text } = req.body || {};
-
-  if (!phone || !text) {
-    return res.status(400).json({
-      error: 'phone y text son requeridos',
-    });
-  }
-
-  try {
-    const result =
-      await whatsappClient.sendMessage({
-        phone,
-        text,
-      });
-
-    res.json({
-      status: 'ok',
-      messageId: result?.key?.id,
-    });
-  } catch (error) {
-    res.status(502).json({
-      error: error.message,
-    });
-  }
-});
-
-app.post('/api/send', requireLocalhost, async (req, res) => {
-  const { to, subject, html, from } = req.body || {};
-
-  if (!to || !subject || !html) {
-    return res.status(400).json({
-      error: 'to, subject y html son requeridos',
-    });
-  }
-
-  try {
-    await sendGmailEmail({
-      to,
-      subject,
-      html,
-      from,
-    });
-
-    res.json({
-      status: 'ok',
-    });
-  } catch (error) {
-    res.status(502).json({
-      error: error.message,
-    });
-  }
-});
+app.post('/api/send', requireLocalhost, gmailController.send);
 
 const port = process.env.PORT || 3000;
 
