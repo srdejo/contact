@@ -46,5 +46,5 @@ _Convención: prefijar cada bloqueo con `[definición]` (el roadmap no da criter
 
 - ~~`[externo]` `GMAIL_USER`/`GMAIL_APP_PASSWORD` no cargados en producción~~ — **resuelto 2026-09-02**, ver "Próximo paso recomendado".
 - ~~`[externo]` Sin verificar: el corte de nginx para `/contact/api/send`~~ — **verificado 2026-09-02**, sigue activo tras la migración. Ver punto 2 de "Próximo paso recomendado".
-- `[definición]` **Por qué se cambió de Meta Cloud API a Baileys.** El cambio se hizo sin registrar la motivación. Importa porque Baileys es una integración no oficial y con estado: si el motivo era evitar el trámite de Meta (verificación de negocio, plantillas aprobadas), la decisión se sostiene; si era otra cosa, conviene reevaluarla antes de depender de esto en producción. Preguntado al usuario, pendiente de respuesta — `docs/DECISIONS.md` lo tiene marcado como pendiente.
+- ~~`[definición]` Por qué se cambió de Meta Cloud API a Baileys~~ — **resuelto 2026-09-08**: el usuario confirmó que fue para evitar los pagos de la Meta Cloud API, que hoy funciona y que no va a cambiarlo. Registrado en `docs/DECISIONS.md`.
 - ~~`[definición]` Cómo se protege `POST /api/whatsapp/send`~~ — **resuelto 2026-09-05**: el servicio entero pasó a ser interno (loopback + sin proxy). Ver `docs/DECISIONS.md`.

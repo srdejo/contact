@@ -86,15 +86,17 @@ versión de Meta Cloud API.
       así que el canal de WhatsApp de `/api/contact` falla por número inválido.
 - [ ] Escanear el QR en el VPS después del primer deploy (`-Action ContactLogs`).
 
-## Etapa 4 — Por qué Baileys en vez de Meta Cloud API
+## Etapa 4 — Por qué Baileys en vez de Meta Cloud API ✅
 
-El cambio de proveedor de WhatsApp se hizo sin registrar la motivación. Importa
-porque Baileys es una integración no oficial y con estado: si el motivo era evitar
-el trámite de Meta (verificación de negocio, plantillas aprobadas), la decisión se
-sostiene; si era otra cosa, conviene reevaluarla antes de depender de esto en
-producción. Sin esa respuesta no hay criterio con el cual dar la etapa por cerrada.
+El cambio de proveedor de WhatsApp se había hecho sin registrar la motivación, y eso
+importaba porque Baileys es una integración no oficial y con estado. **Respondido el
+2026-09-08**: se eligió para evitar los pagos de la Meta Cloud API, funciona, y no se
+va a cambiar. La decisión queda vigente y registrada en `DECISIONS.md`, con sus
+consecuencias operativas asumidas — de las cuales la que conviene no olvidar es que,
+al no haber SLA, si WhatsApp desconecta la cuenta la única salida es volver a la Meta
+Cloud API y a su costo.
 
-- [ ] Registrar el motivo en `DECISIONS.md` y confirmar (o revertir) la decisión.
+- [x] Registrar el motivo en `DECISIONS.md` y confirmar (o revertir) la decisión — **confirmado por el usuario 2026-09-08**: se eligió Baileys para **evitar los pagos de la Meta Cloud API**; hoy funciona y no se va a cambiar. Registrado en `DECISIONS.md` y cerrado en `PROGRESS.md`. La decisión queda vigente con sus consecuencias operativas asumidas (integración no oficial, con estado, una sola instancia, sesión que hay que respaldar).
 
 ## Posibles mejoras futuras (no priorizadas)
 

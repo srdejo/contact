@@ -34,7 +34,9 @@ Decisiones tomadas en este repo y por qué. No incluye decisiones triviales.
 
 **Decisión:** el canal de WhatsApp pasa de la Meta Cloud API (llamada HTTP con `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_ID`) a `@whiskeysockets/baileys`, que se conecta como un dispositivo vinculado de WhatsApp Web. Un solo cliente (`src/clients/whatsapp.client.js`) sirve tanto a `/api/contact` como al nuevo `POST /api/whatsapp/send`.
 
-**Por qué:** _pendiente de confirmar con el usuario_ — la motivación no quedó registrada al hacer el cambio. Ver `docs/PROGRESS.md` > "Bloqueos".
+**Por qué (confirmado por el usuario, 2026-09-08):** **evitar los pagos de la Meta Cloud API.** Baileys se conecta como un dispositivo vinculado de WhatsApp Web y no cobra por mensaje ni exige el trámite de verificación de negocio ni plantillas aprobadas. El usuario confirmó además que hoy funciona y que **no piensa cambiarlo**: la decisión queda vigente, no se revierte.
+
+**Con qué se acepta.** Las consecuencias operativas de abajo se asumen a sabiendas. La más importante de recordar es la última: es una integración no oficial y sin SLA, así que si WhatsApp desconecta o banea la cuenta, la salida es volver a la Meta Cloud API — con su costo. Vale la pena releer esta lista antes de que algo crítico dependa del canal.
 
 **Consecuencias operativas (esto es lo importante):**
 - **El servicio deja de ser stateless.** Mantiene un WebSocket vivo contra WhatsApp y una sesión persistente en `data/whatsapp/auth/` (gitignoreada). Esa carpeta es una credencial: quien la tenga puede enviar mensajes como esa cuenta de WhatsApp.
