@@ -34,7 +34,9 @@ Decisiones tomadas en este repo y por qué. No incluye decisiones triviales.
 
 **Decisión:** el canal de WhatsApp pasa de la Meta Cloud API (llamada HTTP con `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_ID`) a `@whiskeysockets/baileys`, que se conecta como un dispositivo vinculado de WhatsApp Web. Un solo cliente (`src/clients/whatsapp.client.js`) sirve tanto a `/api/contact` como al nuevo `POST /api/whatsapp/send`.
 
-**Por qué:** _pendiente de confirmar con el usuario_ — la motivación no quedó registrada al hacer el cambio. Ver `docs/PROGRESS.md` > "Bloqueos".
+**Por qué (confirmado por el usuario, 2026-09-08):** **evitar los pagos de la Meta Cloud API.** Baileys se conecta como un dispositivo vinculado de WhatsApp Web y no cobra por mensaje ni exige el trámite de verificación de negocio ni plantillas aprobadas. El usuario confirmó además que hoy funciona y que **no piensa cambiarlo**: la decisión queda vigente, no se revierte.
+
+**Con qué se acepta.** Las consecuencias operativas de abajo se asumen a sabiendas. La más importante de recordar es la última: es una integración no oficial y sin SLA, así que si WhatsApp desconecta o banea la cuenta, la salida es volver a la Meta Cloud API — con su costo. Vale la pena releer esta lista antes de que algo crítico dependa del canal.
 
 **Consecuencias operativas (esto es lo importante):**
 - **El servicio deja de ser stateless.** Mantiene un WebSocket vivo contra WhatsApp y una sesión persistente en `data/whatsapp/auth/` (gitignoreada). Esa carpeta es una credencial: quien la tenga puede enviar mensajes como esa cuenta de WhatsApp.
@@ -56,3 +58,16 @@ Decisiones tomadas en este repo y por qué. No incluye decisiones triviales.
 **Nota sobre `requireLocalhost`:** es la segunda capa, no la primera. No protege de un nginx corriendo en el mismo host (nginx llega como `127.0.0.1` y pasa el chequeo). Lo que protege es el bind a loopback más la ausencia del `location`.
 
 **Trade-off aceptado:** si algún día vuelve a hacer falta un formulario público, no se reabre este servicio — el frontend llama a un backend del workspace y ese backend llama a `contact` por loopback.
+
+## Los `git push` los hace Daniel, no el agente (2026-09-08)
+
+**Decisión:** las sesiones del agente trabajan en una rama `claude/<tema>-<fecha>` y hacen commit local, pero **no publican nada**. El `push` y el merge a `main` los hace Daniel desde su máquina. En el entorno del agente no se configuran credenciales de git: ni deploy key, ni token, ni llaves SSH.
+
+**Por qué:** el entorno del agente es efímero — cada sesión arranca con un `$HOME` limpio, así que cualquier credencial tendría que quedar en texto plano dentro de la carpeta del workspace para sobrevivir de un día para otro. Y el push manual conserva un punto de revisión humano: el diff se ve antes de que entre a GitHub. Automatizarlo ahorra ~30 segundos al día a cambio de un secreto en disco; el cambio no compensa.
+
+**Alternativas descartadas:**
+- **Deploy key por repo.** Son 10 repos y una deploy key sirve para uno solo (GitHub no permite reusar la misma llave en varios). Además **no se puede limitar a un patrón de ramas**: lo que limita por rama es un *ruleset* del repositorio, no el tipo de credencial.
+- **Token fino (fine-grained PAT)** con `Contents: Read and write` sobre los 10 repos. Sería la vía si algún día se automatiza —es más simple que 10 llaves— pero implica igualmente el token en disco, y exigiría proteger `main` con un ruleset para que el secreto no pueda escribir ahí.
+- **GitHub App.** Lo más correcto (tokens de vida corta, sin secreto persistente) y demasiado montaje para lo que se gana.
+
+**Consecuencia práctica:** que `git push` falle en el entorno del agente con `Host key verification failed` es el **comportamiento esperado**, no un problema por resolver ni un bloqueante que reportar. Cada sesión deja las ramas listas y los comandos de push en `RESUMEN-DIARIO.md`, en la raíz del workspace. Aplica a los 10 repos.
