@@ -4,3 +4,7 @@ node_modules/
 
 auth_info_baileys/
 data/whatsapp/auth/
+
+# Backups de la sesion de WhatsApp que baja infra/deploy.ps1 -Projects contact -Action Backup.
+# Son credenciales de una cuenta real: nunca al repo.
+backups/
