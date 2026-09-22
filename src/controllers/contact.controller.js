@@ -4,7 +4,12 @@
  * Notifica por dos canales independientes (email y WhatsApp) y responde 207
  * cuando alguno falla: el contrato que ya consumen los frontends. Un canal caído
  * no debe tumbar al otro, por eso cada envío va en su propio try/catch.
+ *
+ * Los tres campos vienen de un formulario público, así que se escapan antes de
+ * interpolarlos en el HTML del correo (ver `utils/escape-html.js`).
  */
+import { escaparHtml } from '../utils/escape-html.js';
+
 export function createContactController({
   emailService,
   whatsappService,
@@ -20,11 +25,13 @@ export function createContactController({
         });
       }
 
+      // El formulario es publico: lo que llega se escapa antes de entrar al HTML
+      // del correo. El texto de WhatsApp va crudo a proposito - es texto plano.
       const html = `
-    <p><strong>Nombre:</strong> ${name}</p>
-    <p><strong>Email:</strong> ${email}</p>
+    <p><strong>Nombre:</strong> ${escaparHtml(name)}</p>
+    <p><strong>Email:</strong> ${escaparHtml(email)}</p>
     <p><strong>Mensaje:</strong></p>
-    <p>${message}</p>
+    <p>${escaparHtml(message)}</p>
   `;
 
       const results = { email: null, whatsapp: null };

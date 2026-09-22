@@ -25,6 +25,13 @@ dos canales y responde con el contrato que consumen los frontends
 - [x] Un canal caído no tumba al otro: respuesta `207` con `errors` por canal —
       verificado 2026-09-05 y de nuevo 2026-09-07 con los dos canales sin credenciales.
 - [x] Servicio desplegado en el VPS detrás de nginx.
+- [x] El cuerpo HTML del correo escapa `name`, `email` y `message` antes de interpolarlos
+      (`src/utils/escape-html.js`). El formulario es público y esos tres campos entraban
+      crudos al HTML, así que un `<img src=x onerror=…>` o un `</p><a href=…>` llegaba al
+      buzón como marcado y no como texto. El canal de WhatsApp sigue sin escapar a
+      propósito: es texto plano. Verificado 2026-09-22 con `npm test` (28 pruebas, 0 fallos),
+      incluidas dos nuevas que comprueban el escape en el correo y la ausencia de escape en
+      WhatsApp; se confirmó además que la prueba del correo falla si se quita el escape.
 
 ## Etapa 2 — `POST /api/send`: correo interno para los demás proyectos ✅
 

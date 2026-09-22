@@ -30,6 +30,23 @@ Verificado en local contra el servidor corriendo: `/health` → 200; `/api/conta
 3. Escanear el QR en el VPS después del primer deploy (`-Action ContactLogs`).
 4. Resolver el código muerto de `src/controllers/whatsapp.controller.js` (cablearlo o borrarlo).
 
+## Verificado en esta sesión (2026-09-22, escape del HTML del correo)
+
+- **Hallazgo**: `contact.controller.js` interpolaba `name`, `email` y `message` sin escapar en el
+  cuerpo HTML del correo. El formulario es público, así que cualquiera podía mandar
+  `<img src=x onerror=…>` o `</p><a href=…>` y eso llegaba al buzón como marcado, no como texto.
+  No es un riesgo de servidor (no se ejecuta nada en Node), sí de lo que ve quien abre el correo.
+- **Arreglo**: nuevo módulo `src/utils/escape-html.js` con `escaparHtml()`, aplicado en el punto de
+  interpolación. El dato se guarda crudo para los demás canales: el texto de WhatsApp sigue sin
+  escapar a propósito, porque es texto plano y ahí el escape solo ensuciaría el mensaje.
+  `POST /api/send` (correo interno para los otros proyectos) **no** se tocó: ahí el `html` lo arma
+  un servicio de confianza del mismo servidor y escaparlo rompería a sus consumidores.
+- **Verificación**: `npm test` → **28 pruebas, 0 fallos** (antes eran 21). Las nuevas: cinco sobre
+  `escaparHtml` (los cinco caracteres, no-doble-escape del `&`, texto limpio intacto,
+  `null`/`undefined` → cadena vacía, no-string) y dos sobre el controlador (el correo escapa, el
+  texto de WhatsApp no). Se comprobó además que la prueba del correo **falla** si se le quita el
+  escape al controlador, para que no sea una prueba que pasa sola.
+
 ## Próximo paso recomendado
 
 1. **Resuelto (2026-09-02)**: credenciales de Gmail cargadas en el `.env` del VPS, `contact` envía correo por Gmail en producción. El usuario confirma que `/api/send` funciona por loopback y que el acceso público (`/api/contact`) también responde correctamente.

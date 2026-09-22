@@ -132,3 +132,63 @@ test('el numero destino de WhatsApp se lee al momento de enviar', async () => {
   assert.equal(recibido.phone, '573009998877');
   assert.match(recibido.text, /Nombre: Ana/);
 });
+
+test('el HTML del correo escapa lo que llega del formulario publico', async () => {
+  const res = respuestaFalsa();
+  let recibido = null;
+
+  const controladorConEspia = createContactController({
+    emailService: {
+      send: async (payload) => {
+        recibido = payload;
+        return { id: 'ok' };
+      },
+    },
+    whatsappService: servicioOk(),
+    whatsappToNumber: () => '573001112233',
+  });
+
+  await controladorConEspia.send(
+    {
+      body: {
+        name: '<img src=x onerror=alert(1)>',
+        email: 'ana@example.com',
+        message: '</p><a href="http://malo">clic</a>',
+      },
+    },
+    res
+  );
+
+  assert.equal(res.statusCode, 200);
+  // Ni una sola etiqueta inyectada sobrevive en el cuerpo del correo.
+  assert.ok(!recibido.html.includes('<img'));
+  assert.ok(!recibido.html.includes('<a href'));
+  assert.match(recibido.html, /&lt;img src=x onerror=alert\(1\)&gt;/);
+  assert.match(recibido.html, /&lt;\/p&gt;&lt;a href=&quot;http:\/\/malo&quot;&gt;/);
+  // El marcado propio de la plantilla sigue intacto.
+  assert.match(recibido.html, /<strong>Nombre:<\/strong>/);
+});
+
+test('el texto de WhatsApp NO se escapa: es texto plano', async () => {
+  const res = respuestaFalsa();
+  let recibido = null;
+
+  const controladorConEspia = createContactController({
+    emailService: servicioOk(),
+    whatsappService: {
+      send: async (payload) => {
+        recibido = payload;
+        return { id: 'ok' };
+      },
+    },
+    whatsappToNumber: () => '573001112233',
+  });
+
+  await controladorConEspia.send(
+    { body: { name: 'Tom & Jerry', email: 'a@b.co', message: '1 < 2' } },
+    res
+  );
+
+  assert.match(recibido.text, /Nombre: Tom & Jerry/);
+  assert.match(recibido.text, /Mensaje: 1 < 2/);
+});
