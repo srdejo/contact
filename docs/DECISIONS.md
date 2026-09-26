@@ -59,6 +59,23 @@ Decisiones tomadas en este repo y por qué. No incluye decisiones triviales.
 
 **Trade-off aceptado:** si algún día vuelve a hacer falta un formulario público, no se reabre este servicio — el frontend llama a un backend del workspace y ese backend llama a `contact` por loopback.
 
+## `contact` reenvía a PERLA lo que llega al número de WhatsApp (2026-09-25)
+
+**Decisión:** `contact` es el conector de WhatsApp de PERLA (`../perla-ai`, change `add-whatsapp-profile-channel`). Reenvía cada mensaje nuevo del número de Baileys con `POST PERLA_EVENTS_URL` (`http://127.0.0.1:8084/internal/whatsapp/events`) y la cabecera `X-Perla-Channel-Secret`, y PERLA responde por el `POST /api/whatsapp/send` de siempre, ahora con `{ jid, text }`. El contrato (forma del evento, códigos de respuesta, qué se ignora) es el **D1** del `design.md` de ese change, y es la fuente de verdad: `contact` no lo redefine.
+
+**Por qué así:**
+- **Sigue siendo un servicio interno.** El reenvío es una llamada **saliente** por loopback: no hay ninguna ruta nueva en `contact` ni nada nuevo en nginx (ver la decisión del 2026-09-05).
+- **Loopback más secreto del lado de PERLA**, porque nginx también llega a PERLA como `127.0.0.1`. Del lado de `contact` el secreto es una variable (`PERLA_CHANNEL_SECRET`, el mismo valor que `WHATSAPP_CHANNEL_SECRET` de PERLA) que nunca se escribe en el log.
+- **El ID de cada envío lo fija `contact` y lo registra antes de enviar** (15 minutos en memoria). El eco de una respuesta de PERLA puede llegar antes de que Baileys confirme el envío, y sin el registro se leería como Daniel escribiendo desde el teléfono (`OWNER`) y dispararía una toma falsa.
+- **Reintentos acotados y sin cola persistente:** `5xx` o sin respuesta → 1 s, 5 s y 30 s, y se descarta con log. `400`/`401`/`503` no se reintentan (D1). El **`404`** tampoco: es lo que responde PERLA si todavía no tiene el canal desplegado, y reintentarlo no cambia nada. El `404` no está en la tabla de D1; es comportamiento interno de `contact` y conviene agregarlo allá.
+- **Orden por chat:** los eventos de un mismo chat se entregan en orden aunque uno esté reintentando; los chats distintos no se esperan.
+- **"Mensaje a mí mismo" también se ignora** (decisión de Daniel, 2026-09-25), además de lo que lista D1.
+- **Sin dependencias nuevas:** `fetch` nativo de Node y las utilidades de JID de Baileys.
+
+**Restricción que deja:** el número de Baileys es **solo de PERLA** (confirmado por Daniel, 2026-09-25). Todo chat de persona que le escriba llega a PERLA y el bot le contesta. El único otro uso es la notificación de `/api/contact` a `WHATSAPP_TO_NUMBER`, cuyo chat se ignora en los dos sentidos. Un servicio que quiera escribir a terceros por WhatsApp necesita **otro número** (otra sesión de Baileys), no este.
+
+**Apagado:** con `PERLA_EVENTS_URL` vacía no se hace ninguna petición y el servicio se comporta como antes. Es también el rollback.
+
 ## Los `git push` los hace Daniel, no el agente (2026-09-08)
 
 **Decisión:** las sesiones del agente trabajan en una rama `claude/<tema>-<fecha>` y hacen commit local, pero **no publican nada**. El `push` y el merge a `main` los hace Daniel desde su máquina. En el entorno del agente no se configuran credenciales de git: ni deploy key, ni token, ni llaves SSH.

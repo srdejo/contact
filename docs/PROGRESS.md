@@ -28,7 +28,7 @@ Verificado en local contra el servidor corriendo: `/health` → 200; `/api/conta
 1. Quitar el `location /contact/` del nginx del VPS (`/etc/nginx/sites-available/nolost`) y dejar `return 404`. En local ya está hecho. Ver `docs/DEPLOYMENT.md`.
 2. Llenar `WHATSAPP_TO_NUMBER` en el `.env` (local y VPS): hoy está vacío en local, así que el canal de WhatsApp de `/api/contact` falla por número inválido.
 3. Escanear el QR en el VPS después del primer deploy (`-Action ContactLogs`).
-4. Resolver el código muerto de `src/controllers/whatsapp.controller.js` (cablearlo o borrarlo).
+4. ~~Resolver el código muerto de `src/controllers/whatsapp.controller.js`~~ — ya estaba resuelto el 2026-09-07 (se cableó: `server.js` lo usa para `/api/whatsapp/*`). Esta nota había quedado desactualizada; corregida el 2026-09-25.
 
 ## Verificado en esta sesión (2026-09-22, escape del HTML del correo)
 
@@ -46,6 +46,18 @@ Verificado en local contra el servidor corriendo: `/health` → 200; `/api/conta
   `null`/`undefined` → cadena vacía, no-string) y dos sobre el controlador (el correo escapa, el
   texto de WhatsApp no). Se comprobó además que la prueba del correo **falla** si se le quita el
   escape al controlador, para que no sea una prueba que pasa sola.
+
+## Verificado en esta sesión (2026-09-25, conector de WhatsApp para PERLA)
+
+Change `openspec/changes/forward-whatsapp-to-perla/` (contrato D1 de `perla-ai`). Ver `docs/DECISIONS.md`.
+
+- **Hecho:** `POST /api/whatsapp/send` acepta `{ jid, text }` (gana sobre `phone`, va tal cual). Cada envío fija y registra su ID **antes** de llamar a Baileys (15 min). `messages.upsert` (`notify`) reenvía a PERLA `INBOUND` y `OWNER` con los filtros de D1 más "Mensaje a mí mismo", prefiriendo el JID de teléfono sobre el `@lid`. Reintentos 1 s / 5 s / 30 s para `5xx` o sin respuesta; `400`/`401`/`404`/`503` sin reintento. Variables `PERLA_EVENTS_URL` (vacía = apagado) y `PERLA_CHANNEL_SECRET`. Sin rutas nuevas ni dependencias nuevas.
+- **`src/controllers/whatsapp.controller.js` no era código muerto** (se cableó el 2026-09-07): no se borró; se corrigieron el README, `ARCHITECTURE.md` y el punto 4 de "Falta para poder desplegar".
+- **Pruebas:** `npm test` → **77 pruebas, 0 fallos** (antes 28). Nuevas: `whatsapp.client.test.js` (11, con un doble de Baileys), `whatsapp.events.test.js` (26), `perla.client.test.js` (9) y 3 más del controlador. El test del eco emite el `upsert` **antes** de que `sendMessage` resuelva; se comprobó que **falla** si el ID se registra después del `await socket.sendMessage(...)` (el eco llega como `OWNER`), y que pasa con el código correcto.
+- **Arranque:** comprobado desde una copia aislada (sin la sesión real de `data/whatsapp/auth/`, para no desplazar la cuenta vinculada): con `PERLA_EVENTS_URL` vacía arranca, pide QR, `POST /api/contact` sin cuerpo → `400` de siempre, envío por `jid` sin sesión → `502`, sin destino → `400`. Con URL y sin secreto, avisa en el log.
+- **Integración en proceso:** doble de Baileys + cliente de PERLA real + `fetch` real contra un receptor falso en loopback: `INBOUND` y `OWNER` llegan con la cabecera del secreto y en orden por chat; el eco de un envío por la API **no** llega; un `500` se reintenta a 1 s y entra; un receptor que nunca responde recibe 4 intentos y el evento se descarta con log.
+- **Pendiente `[externo]`:** la prueba con un teléfono real (escribir al número dedicado desde otro teléfono y desde el propio, y responder por `jid`) contra PERLA desplegada. Necesita la sesión vinculada corriendo en un solo lugar y el canal de PERLA arriba.
+- **Sugerencias para `perla-ai`** (no bloquean aquí): agregar la fila `404` a la tabla de D1, y "Mensaje a mí mismo" al punto 4 de D1 ("Ignora sin reenviar").
 
 ## Próximo paso recomendado
 
@@ -65,3 +77,4 @@ _Convención: prefijar cada bloqueo con `[definición]` (el roadmap no da criter
 - ~~`[externo]` Sin verificar: el corte de nginx para `/contact/api/send`~~ — **verificado 2026-09-02**, sigue activo tras la migración. Ver punto 2 de "Próximo paso recomendado".
 - ~~`[definición]` Por qué se cambió de Meta Cloud API a Baileys~~ — **resuelto 2026-09-08**: el usuario confirmó que fue para evitar los pagos de la Meta Cloud API, que hoy funciona y que no va a cambiarlo. Registrado en `docs/DECISIONS.md`.
 - ~~`[definición]` Cómo se protege `POST /api/whatsapp/send`~~ — **resuelto 2026-09-05**: el servicio entero pasó a ser interno (loopback + sin proxy). Ver `docs/DECISIONS.md`.
+- `[externo]` Prueba del reenvío a PERLA con un teléfono real — necesita PERLA con el canal desplegado y la sesión de WhatsApp corriendo en un solo lugar. Ver "Verificado en esta sesión (2026-09-25)".

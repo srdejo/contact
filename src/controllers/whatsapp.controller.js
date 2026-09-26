@@ -8,16 +8,19 @@
 export function createWhatsAppController({ whatsappService }) {
   return {
     send: async (req, res) => {
-      const { phone, text } = req.body || {};
+      const { jid, phone, text } = req.body || {};
 
-      if (!phone || !text) {
+      if (!text || (!jid && !phone)) {
         return res.status(400).json({
-          error: 'phone y text son requeridos',
+          error: 'text y phone o jid son requeridos',
         });
       }
 
+      // `jid` (respuesta de PERLA a un chat) gana sobre `phone` y va tal cual.
+      const destination = jid ? { jid } : { phone };
+
       try {
-        const result = await whatsappService.send({ phone, text });
+        const result = await whatsappService.send({ ...destination, text });
 
         return res.json({
           status: 'ok',

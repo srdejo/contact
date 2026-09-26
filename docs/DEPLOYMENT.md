@@ -127,9 +127,28 @@ GMAIL_USER=...
 GMAIL_APP_PASSWORD=...
 GMAIL_FROM=...
 WHATSAPP_TO_NUMBER=573001234567
+PERLA_EVENTS_URL=
+PERLA_CHANNEL_SECRET=
 ```
 
 `WHATSAPP_TO_NUMBER` va **solo con dígitos e indicativo**, sin `+` ni espacios. Si queda vacío, el canal de WhatsApp de `/api/contact` falla con "El número de teléfono es inválido" y el endpoint responde 207.
+
+#### Encender el reenvío a PERLA
+
+`PERLA_EVENTS_URL` vacía = reenvío apagado. Así se despliega primero, y así queda hasta que PERLA tenga el canal listo. Orden de encendido (paso 3 y 4 del Migration Plan de `perla-ai`, change `add-whatsapp-profile-channel`):
+
+1. Desplegar `contact` con `PERLA_EVENTS_URL` vacía. Nada cambia para los demás consumidores: comprobar `/api/contact` y `/api/whatsapp/send` como siempre.
+2. Cuando PERLA tenga desplegado el canal (su migración V3 y `/internal/whatsapp/events`), poner en este `.env`:
+   ```
+   PERLA_EVENTS_URL=http://127.0.0.1:8084/internal/whatsapp/events
+   PERLA_CHANNEL_SECRET=<el mismo valor que WHATSAPP_CHANNEL_SECRET en el .env de PERLA>
+   WHATSAPP_TO_NUMBER=<número personal de Daniel, si sigue vacío>
+   ```
+   y reiniciar: `sudo systemctl restart nolost-contact`.
+3. Verificar en los logs (`journalctl -u nolost-contact -f`) que no aparecen `PERLA rechazó el evento ... HTTP 401` (secreto distinto) ni `HTTP 404` (PERLA sin el canal desplegado) al escribirle al número desde otro teléfono.
+4. **Rollback:** vaciar `PERLA_EVENTS_URL` y reiniciar. No hay datos que migrar.
+
+Si `PERLA_EVENTS_URL` está puesta y `PERLA_CHANNEL_SECRET` no, el servicio arranca igual y avisa en el log; PERLA rechazará todo con `401`.
 
 ### 4. Primer deploy
 
