@@ -105,7 +105,7 @@ Cloud API y a su costo.
 
 - [x] Registrar el motivo en `DECISIONS.md` y confirmar (o revertir) la decisión — **confirmado por el usuario 2026-09-08**: se eligió Baileys para **evitar los pagos de la Meta Cloud API**; hoy funciona y no se va a cambiar. Registrado en `DECISIONS.md` y cerrado en `PROGRESS.md`. La decisión queda vigente con sus consecuencias operativas asumidas (integración no oficial, con estado, una sola instancia, sesión que hay que respaldar).
 
-## Etapa 5 — Conector de WhatsApp para PERLA 🟡
+## Etapa 5 — Conector de WhatsApp para PERLA ✅
 
 `contact` le reenvía a PERLA lo que llega al número de Baileys y le deja responder por
 `jid`. Contrato: D1 de `perla-ai` (`add-whatsapp-profile-channel`). Change de OpenSpec:
@@ -115,8 +115,8 @@ Cloud API y a su costo.
       `{ jid, text }`; ID propio registrado antes de enviar; reenvío `INBOUND`/`OWNER`
       con filtros, preferencia de JID de teléfono y reintentos; variables
       `PERLA_EVENTS_URL` y `PERLA_CHANNEL_SECRET`. Ver `DECISIONS.md` y `PROGRESS.md`.
-- [ ] Prueba con un teléfono real y PERLA desplegada (`[externo]`, ver `PROGRESS.md`).
-- [ ] Encender en el VPS según `DEPLOYMENT.md` > "Encender el reenvío a PERLA".
+- [x] Prueba con un teléfono real y PERLA desplegada — 2026-09-26, ver `PROGRESS.md`.
+- [x] Encendido en el VPS según `DEPLOYMENT.md` > "Encender el reenvío a PERLA" — 2026-09-26.
 
 ## Posibles mejoras futuras (no priorizadas)
 
