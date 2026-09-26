@@ -4,7 +4,8 @@ import cors from 'cors';
 
 import { sendEmail } from './clients/resend.client.js';
 import { sendGmailEmail } from './clients/gmail.client.js';
-import * as whatsappClient from './clients/whatsapp.client.js';
+import { createWhatsAppClient } from './clients/whatsapp.client.js';
+import { createPerlaClient } from './clients/perla.client.js';
 
 import { createContactController } from './controllers/contact.controller.js';
 import { createGmailController } from './controllers/gmail.controller.js';
@@ -48,6 +49,35 @@ const emailService = {
 const gmailService = {
   send: (payload) => sendGmailEmail(payload),
 };
+
+// Reenvio a PERLA: saliente, por loopback y con secreto. Sin URL queda apagado
+// y el servicio se comporta como antes para los demas consumidores.
+const perlaEventsUrl = process.env.PERLA_EVENTS_URL?.trim();
+
+let perlaClient = null;
+
+if (perlaEventsUrl) {
+  if (!process.env.PERLA_CHANNEL_SECRET) {
+    console.warn(
+      'PERLA_EVENTS_URL está configurada pero PERLA_CHANNEL_SECRET no: PERLA rechazará los eventos con 401.'
+    );
+  }
+
+  perlaClient = createPerlaClient({
+    url: perlaEventsUrl,
+    secret: process.env.PERLA_CHANNEL_SECRET,
+  });
+}
+
+const whatsappClient = createWhatsAppClient({
+  onMessage: perlaClient ? (event) => perlaClient.forward(event) : undefined,
+  // Se lee en cada mensaje, igual que en /api/contact.
+  isIgnoredNumber: (digits) => {
+    const personal = String(process.env.WHATSAPP_TO_NUMBER ?? '').replace(/\D/g, '');
+
+    return personal !== '' && personal === digits;
+  },
+});
 
 const whatsappService = {
   send: (payload) => whatsappClient.sendMessage(payload),

@@ -18,7 +18,7 @@ function respuestaFalsa() {
   };
 }
 
-test('400 cuando falta phone o text', async () => {
+test('400 cuando falta text', async () => {
   const res = respuestaFalsa();
 
   await createWhatsAppController({
@@ -26,7 +26,76 @@ test('400 cuando falta phone o text', async () => {
   }).send({ body: { phone: '573001112233' } }, res);
 
   assert.equal(res.statusCode, 400);
-  assert.equal(res.cuerpo.error, 'phone y text son requeridos');
+  assert.equal(res.cuerpo.error, 'text y phone o jid son requeridos');
+});
+
+test('400 cuando no hay ni phone ni jid', async () => {
+  const res = respuestaFalsa();
+  let enviado = false;
+
+  await createWhatsAppController({
+    whatsappService: {
+      send: async () => {
+        enviado = true;
+      },
+      status: () => ({}),
+    },
+  }).send({ body: { text: 'Hola' } }, res);
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.cuerpo.error, 'text y phone o jid son requeridos');
+  assert.equal(enviado, false);
+});
+
+test('200 con envio por jid', async () => {
+  const res = respuestaFalsa();
+  let recibido = null;
+
+  await createWhatsAppController({
+    whatsappService: {
+      send: async (payload) => {
+        recibido = payload;
+        return { key: { id: 'JID1' } };
+      },
+      status: () => ({}),
+    },
+  }).send(
+    { body: { jid: '573001234567@s.whatsapp.net', text: 'Hola' } },
+    res
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.cuerpo, { status: 'ok', messageId: 'JID1' });
+  assert.deepEqual(recibido, {
+    jid: '573001234567@s.whatsapp.net',
+    text: 'Hola',
+  });
+});
+
+test('jid gana sobre phone', async () => {
+  const res = respuestaFalsa();
+  let recibido = null;
+
+  await createWhatsAppController({
+    whatsappService: {
+      send: async (payload) => {
+        recibido = payload;
+        return { key: { id: 'JID2' } };
+      },
+      status: () => ({}),
+    },
+  }).send(
+    {
+      body: {
+        jid: '123456789012345@lid',
+        phone: '573009998877',
+        text: 'Hola',
+      },
+    },
+    res
+  );
+
+  assert.deepEqual(recibido, { jid: '123456789012345@lid', text: 'Hola' });
 });
 
 test('200 con el messageId del envio', async () => {

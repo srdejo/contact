@@ -13,7 +13,7 @@ Todos los endpoints salvo `GET /health` pasan por `requireLocalhost` y responden
 - `GET /health` — chequeo de salud. Única ruta sin `requireLocalhost`.
 - `POST /api/contact` — recibe `{ name, email, message }`, envía el mensaje por email (Resend) y WhatsApp (al número de `WHATSAPP_TO_NUMBER`). Responde `200` si ambos canales funcionan, `207` si alguno falla (ver `errors` en la respuesta), `400` si faltan campos.
 - `GET /api/whatsapp/status` — estado de la conexión de WhatsApp: `{ status, connected }`, con `status` en `DISCONNECTED` / `QR_REQUIRED` / `CONNECTED`.
-- `POST /api/whatsapp/send` — recibe `{ phone, text }` y envía un WhatsApp a ese número. Responde `200` con `messageId`, `400` si faltan campos, `502` si WhatsApp no está conectado o el envío falla.
+- `POST /api/whatsapp/send` — envía un WhatsApp de texto. El destino es `phone` (dígitos con indicativo; el resto de caracteres se ignora) o `jid` (identificador de chat, por ejemplo `573001234567@s.whatsapp.net` o `123456789012345@lid`, que se usa **tal cual**). Con los dos, gana `jid`. Cuerpo: `{ phone, text }` o `{ jid, text }`. Responde `200 { status: "ok", messageId }`, `400` (`text y phone o jid son requeridos`), `502` si WhatsApp no está conectado o el envío falla. El `messageId` lo fija `contact` antes de enviar y queda registrado 15 minutos como "enviado por la API": así su eco no se reenvía a PERLA como si Daniel hubiera escrito desde el teléfono (ver "Reenvío a PERLA").
 - `POST /api/send` — endpoint genérico de envío de email, **de uso interno únicamente** (ver "Acceso restringido" abajo). Recibe `{ to, subject, html, from? }`, envía por **Gmail SMTP** vía `gmail.client.js` (`nodemailer`) — distinto proveedor que `/api/contact` (Resend), porque los consumidores de `/api/send` (`hotel-backend`, `consulting`) no tenían un dominio verificado en Resend cuando se agregó cada uno. Responde `200` en éxito, `400` si faltan `to`/`subject`/`html`, `502` si Gmail falla, `403` si la petición no viene de localhost.
 
 ### Acceso restringido
@@ -37,7 +37,9 @@ Ver `.env.example`:
 | `GMAIL_USER` | Cuenta de Gmail que envía por `/api/send` |
 | `GMAIL_APP_PASSWORD` | [Contraseña de aplicación](https://myaccount.google.com/apppasswords) de esa cuenta (no la clave normal) |
 | `GMAIL_FROM` | Remitente que se muestra en `/api/send` (opcional, por defecto `GMAIL_USER`) |
-| `WHATSAPP_TO_NUMBER` | Número que recibe la notificación de WhatsApp de `/api/contact` (solo dígitos, con indicativo: `573001234567`) |
+| `WHATSAPP_TO_NUMBER` | Número que recibe la notificación de WhatsApp de `/api/contact` (solo dígitos, con indicativo: `573001234567`). Sus chats nunca se reenvían a PERLA |
+| `PERLA_EVENTS_URL` | URL de eventos de PERLA (`http://127.0.0.1:8084/internal/whatsapp/events` en el VPS). Vacía = reenvío apagado |
+| `PERLA_CHANNEL_SECRET` | Secreto compartido con PERLA: el mismo valor que `WHATSAPP_CHANNEL_SECRET` en su `.env` |
 
 ## Cómo correr en local
 
@@ -69,11 +71,23 @@ La sesión queda en `data/whatsapp/auth/` (gitignoreada). A partir de ahí el se
 - **Si la sesión se cierra desde el teléfono** (`loggedOut`), el cliente deja de reconectar a propósito: hay que borrar `data/whatsapp/auth/` y volver al paso 1.
 - Es una integración **no oficial**: WhatsApp puede desconectar o bloquear la cuenta. Si el canal se vuelve crítico, la Meta Cloud API es la opción soportada.
 
+## Reenvío a PERLA
+
+El número de Baileys es **solo de PERLA** (el asistente del perfil profesional, `../perla-ai`). Con `PERLA_EVENTS_URL` configurada, `contact` le reenvía lo que llega a ese número; PERLA responde por `POST /api/whatsapp/send` con el `jid` del chat. El contrato es el D1 de `perla-ai/openspec/changes/add-whatsapp-profile-channel/design.md`.
+
+- Es una llamada **saliente** por loopback, con la cabecera `X-Perla-Channel-Secret`. No hay ninguna ruta nueva en `contact` y nada pasa por nginx.
+- Solo se reenvían los mensajes nuevos (`messages.upsert` de tipo `notify`):
+  - `INBOUND`: lo que escribe el interlocutor.
+  - `OWNER`: lo que Daniel escribe desde el teléfono del número dedicado. El eco de un envío de la API **no** cuenta como `OWNER`.
+  - `kind`: `TEXT`, o `UNSUPPORTED` para todo lo demás (imagen, audio, documento, sticker, ubicación…).
+- Se ignoran grupos, estados, difusiones, newsletters, llamadas, reacciones, ediciones y borrados, el chat con `WHATSAPP_TO_NUMBER` y "Mensaje a mí mismo".
+- Reintentos: `5xx` o sin respuesta en 10 s → a 1 s, 5 s y 30 s, y luego se descarta con un log. `400`, `401`, `404` (PERLA sin el canal desplegado) y `503` no se reintentan.
+- **Consecuencia:** cualquier persona que escriba a este número le llega a PERLA y el bot le contesta. Un servicio que quiera escribirle a terceros necesita otro número (ver `docs/DECISIONS.md`).
+
 ## Deploy
 
 Ver `docs/DEPLOYMENT.md`. Resumen: `infra\deploy.ps1 -Action Contact` desde la raíz del workspace; el servicio en el VPS es `nolost-contact` y corre en `127.0.0.1:3000`.
 
 ## Pendiente
 
-- `src/controllers/whatsapp.controller.js` es código muerto: nadie lo importa y espera un `whatsappService` que no existe.
 - Quitar el `location /contact/` del nginx del VPS (en local ya está hecho) — ver `docs/DEPLOYMENT.md`.
