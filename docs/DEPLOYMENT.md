@@ -11,7 +11,7 @@ Cómo se instala y se despliega `contact` en `nolost-vps`.
 | Host | `srdejo@nolost-vps` |
 | Directorio | `/home/srdejo/apps/contact` |
 | Servicio systemd | `nolost-contact` |
-| Puerto | `127.0.0.1:3000` (loopback, ver `PORTS.md` raíz del workspace) |
+| Puerto | `127.0.0.1:3000` (loopback, ver `infra/PORTS.md` del workspace) |
 | Runtime | Node.js (ES modules), sin build step |
 | Deploy | `infra\deploy.ps1` -> opcion **9) contact**, o `-Action Contact` |
 | Estado persistente | `/home/srdejo/apps/contact/data/whatsapp/auth/` — sesión de WhatsApp |
@@ -30,7 +30,7 @@ Historial: hasta el 2026-09-05 nginx tenía `location /contact/` -> `127.0.0.1:3
 
 ### Cambio de nginx pendiente en el VPS
 
-En local ya está aplicado (`infra/nginx/edge.conf`). En el VPS hay que hacer lo mismo en `/etc/nginx/sites-available/nolost` (el archivo que sirve el HTTPS real; **no** `micasachurch.co`, que no se ejecuta — ver `docs/PROGRESS.md`, 2026-08-27):
+En local ya no aplica: el entorno Docker de `infra/` deja contact solo en loopback, sin ruta nginx. En el VPS hay que hacer lo mismo en `/etc/nginx/sites-available/nolost` (el archivo que sirve el HTTPS real; **no** `micasachurch.co`, que no se ejecuta — ver `docs/PROGRESS.md`, 2026-08-27):
 
 ```nginx
 # contact API: servicio interno, no se expone. Ver contact/docs/DEPLOYMENT.md.
