@@ -76,6 +76,17 @@ Decisiones tomadas en este repo y por qué. No incluye decisiones triviales.
 
 **Apagado:** con `PERLA_EVENTS_URL` vacía no se hace ninguna petición y el servicio se comporta como antes. Es también el rollback.
 
+## El número también es de recaudo, con la misma sesión (2026-10-13)
+
+**Decisión (de Daniel, 2026-10-11):** las fotos de los recibos de consignación de los vendedores llegan a la sesión actual de Baileys, y `contact` se las reenvía a recaudo (`../recaudo`, design D2 de `recaudo-recibos-whatsapp`). Mientras recaudo use el número, `PERLA_EVENTS_URL` va vacía. Si PERLA se reactiva, se le configura otro número.
+
+- **Mismo mecanismo que PERLA**, en un cliente aparte (`recaudo.client.js`): loopback, un secreto propio (`X-Recaudo-Channel-Secret`), cola por chat y los mismos reintentos. Se copió la cola de `perla.client.js` en lugar de extraerla a un módulo común: son unas 30 líneas, y extraerla obligaba a tocar un cliente en producción y sus pruebas para un segundo consumidor.
+- **La foto se descarga en `contact`** (`downloadMediaMessage` de Baileys) y viaja en base64 en el mismo POST. Así recaudo no necesita la sesión ni las llaves de cifrado de WhatsApp. Pasa del 10 MB del contrato, o falla al descargarse → `UNSUPPORTED`, para que recaudo le pida al vendedor reenviarla en lugar de quedarse callado.
+- **Solo `INBOUND` con número de teléfono**, porque recaudo identifica al vendedor por su número. El contenedor de un álbum tampoco va: sus fotos llegan una por mensaje.
+- **Restricción que cambia:** la de 2026-09-25 decía que el número es **solo de PERLA**. Ahora, mientras `RECAUDO_EVENTS_URL` tenga valor y `PERLA_EVENTS_URL` esté vacía, es de recaudo. Encender las dos a la vez es posible, pero cada mensaje recibiría dos respuestas (la de PERLA y la de recaudo), así que no se hace.
+
+**Rollback:** vaciar `RECAUDO_EVENTS_URL` y reiniciar el servicio.
+
 ## Los `git push` los hace Daniel, no el agente (2026-09-08)
 
 **Decisión:** las sesiones del agente trabajan en una rama `claude/<tema>-<fecha>` y hacen commit local, pero **no publican nada**. El `push` y el merge a `main` los hace Daniel desde su máquina. En el entorno del agente no se configuran credenciales de git: ni deploy key, ni token, ni llaves SSH.

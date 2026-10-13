@@ -129,9 +129,27 @@ GMAIL_FROM=...
 WHATSAPP_TO_NUMBER=573001234567
 PERLA_EVENTS_URL=
 PERLA_CHANNEL_SECRET=
+RECAUDO_EVENTS_URL=
+RECAUDO_CHANNEL_SECRET=
 ```
 
 `WHATSAPP_TO_NUMBER` va **solo con dígitos e indicativo**, sin `+` ni espacios. Si queda vacío, el canal de WhatsApp de `/api/contact` falla con "El número de teléfono es inválido" y el endpoint responde 207.
+
+#### Encender el reenvío a recaudo
+
+`RECAUDO_EVENTS_URL` vacía = reenvío apagado. Recaudo y PERLA no se encienden a la vez: cada mensaje recibiría dos respuestas. Orden (paso 3 del Migration Plan de `recaudo`, change `recaudo-recibos-whatsapp`):
+
+1. Desplegar `contact` con `RECAUDO_EVENTS_URL` vacía y comprobar `/api/contact` y `/api/whatsapp/send` como siempre.
+2. Con recaudo desplegado y respondiendo en `127.0.0.1:8095`, poner en este `.env`:
+   ```
+   PERLA_EVENTS_URL=
+   RECAUDO_EVENTS_URL=http://127.0.0.1:8095/internal/whatsapp/mensajes
+   RECAUDO_CHANNEL_SECRET=<el mismo valor que RECAUDO_CHANNEL_SECRET en el .env de recaudo>
+   ```
+3. `sudo systemctl restart nolost-contact` y revisar `journalctl -u nolost-contact -n 50`: no debe aparecer el aviso "RECAUDO_CHANNEL_SECRET no".
+4. Desde el teléfono de un vendedor registrado en recaudo (no desde `WHATSAPP_TO_NUMBER`), mandar la foto de un recibo: llega la respuesta ✅ o ❌ y el evento aparece en el log de la web.
+
+**Rollback:** vaciar `RECAUDO_EVENTS_URL` y reiniciar el servicio.
 
 #### Encender el reenvío a PERLA
 

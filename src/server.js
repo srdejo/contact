@@ -6,6 +6,8 @@ import { sendEmail } from './clients/resend.client.js';
 import { sendGmailEmail } from './clients/gmail.client.js';
 import { createWhatsAppClient } from './clients/whatsapp.client.js';
 import { createPerlaClient } from './clients/perla.client.js';
+import { createRecaudoClient } from './clients/recaudo.client.js';
+import { toRecaudoMessage } from './clients/recaudo.events.js';
 
 import { createContactController } from './controllers/contact.controller.js';
 import { createGmailController } from './controllers/gmail.controller.js';
@@ -69,8 +71,39 @@ if (perlaEventsUrl) {
   });
 }
 
+// Reenvio a recaudo (recibos de los vendedores): mismo mecanismo que PERLA,
+// sobre la misma sesion. Mientras recaudo use el numero, PERLA_EVENTS_URL va
+// vacia (decision de recaudo, design D2). Sin URL queda apagado.
+const recaudoEventsUrl = process.env.RECAUDO_EVENTS_URL?.trim();
+
+let recaudoClient = null;
+
+if (recaudoEventsUrl) {
+  if (!process.env.RECAUDO_CHANNEL_SECRET) {
+    console.warn(
+      'RECAUDO_EVENTS_URL está configurada pero RECAUDO_CHANNEL_SECRET no: recaudo rechazará los mensajes con 401.'
+    );
+  }
+
+  recaudoClient = createRecaudoClient({
+    url: recaudoEventsUrl,
+    secret: process.env.RECAUDO_CHANNEL_SECRET,
+    downloadImage: (message) => whatsappClient.downloadImage(message),
+  });
+}
+
+function forwardMessage(event, message) {
+  perlaClient?.forward(event);
+
+  const recaudoMessage = recaudoClient ? toRecaudoMessage(event, message) : null;
+
+  if (recaudoMessage) {
+    recaudoClient.forward(recaudoMessage, message);
+  }
+}
+
 const whatsappClient = createWhatsAppClient({
-  onMessage: perlaClient ? (event) => perlaClient.forward(event) : undefined,
+  onMessage: perlaClient || recaudoClient ? forwardMessage : undefined,
   // Se lee en cada mensaje, igual que en /api/contact.
   isIgnoredNumber: (digits) => {
     const personal = String(process.env.WHATSAPP_TO_NUMBER ?? '').replace(/\D/g, '');

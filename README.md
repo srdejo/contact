@@ -40,6 +40,8 @@ Ver `.env.example`:
 | `WHATSAPP_TO_NUMBER` | Número que recibe la notificación de WhatsApp de `/api/contact` (solo dígitos, con indicativo: `573001234567`). Sus chats nunca se reenvían a PERLA |
 | `PERLA_EVENTS_URL` | URL de eventos de PERLA (`http://127.0.0.1:8084/internal/whatsapp/events` en el VPS). Vacía = reenvío apagado |
 | `PERLA_CHANNEL_SECRET` | Secreto compartido con PERLA: el mismo valor que `WHATSAPP_CHANNEL_SECRET` en su `.env` |
+| `RECAUDO_EVENTS_URL` | URL de mensajes de recaudo (`http://127.0.0.1:8095/internal/whatsapp/mensajes` en el VPS). Vacía = reenvío apagado |
+| `RECAUDO_CHANNEL_SECRET` | Secreto compartido con recaudo: el mismo valor que `RECAUDO_CHANNEL_SECRET` en su `.env` |
 
 ## Cómo correr en local
 
@@ -73,7 +75,7 @@ La sesión queda en `data/whatsapp/auth/` (gitignoreada). A partir de ahí el se
 
 ## Reenvío a PERLA
 
-El número de Baileys es **solo de PERLA** (el asistente del perfil profesional, `../perla-ai`). Con `PERLA_EVENTS_URL` configurada, `contact` le reenvía lo que llega a ese número; PERLA responde por `POST /api/whatsapp/send` con el `jid` del chat. El contrato es el D1 de `perla-ai/openspec/changes/add-whatsapp-profile-channel/design.md`.
+Mientras recaudo use el número (ver "Reenvío a recaudo"), `PERLA_EVENTS_URL` va vacía y PERLA no recibe nada. Con `PERLA_EVENTS_URL` configurada, `contact` le reenvía lo que llega a ese número; PERLA responde por `POST /api/whatsapp/send` con el `jid` del chat. El contrato es el D1 de `perla-ai/openspec/changes/add-whatsapp-profile-channel/design.md`.
 
 - Es una llamada **saliente** por loopback, con la cabecera `X-Perla-Channel-Secret`. No hay ninguna ruta nueva en `contact` y nada pasa por nginx.
 - Solo se reenvían los mensajes nuevos (`messages.upsert` de tipo `notify`):
@@ -83,6 +85,19 @@ El número de Baileys es **solo de PERLA** (el asistente del perfil profesional,
 - Se ignoran grupos, estados, difusiones, newsletters, llamadas, reacciones, ediciones y borrados, el chat con `WHATSAPP_TO_NUMBER` y "Mensaje a mí mismo".
 - Reintentos: `5xx` o sin respuesta en 10 s → a 1 s, 5 s y 30 s, y luego se descarta con un log. `400`, `401`, `404` (PERLA sin el canal desplegado) y `503` no se reintentan.
 - **Consecuencia:** cualquier persona que escriba a este número le llega a PERLA y el bot le contesta. Un servicio que quiera escribirle a terceros necesita otro número (ver `docs/DECISIONS.md`).
+
+## Reenvío a recaudo
+
+Desde 2026-10-13 el número de Baileys recibe las fotos de los recibos de consignación de los vendedores (`../recaudo`). Con `RECAUDO_EVENTS_URL` configurada, `contact` le reenvía a recaudo lo que llega al número, con la foto ya descargada. recaudo responde al vendedor por `POST /api/whatsapp/send` con el `jid` del chat. El contrato es el D2 de `recaudo/openspec/changes/recaudo-recibos-whatsapp/design.md`.
+
+- Es el mismo mecanismo que el de PERLA, sobre la **misma sesión**: llamada saliente por loopback, con la cabecera `X-Recaudo-Channel-Secret`. Mientras recaudo use el número, `PERLA_EVENTS_URL` va vacía (decisión de Daniel, 2026-10-11).
+- Cuerpo: `{ messageId, jid, phone, receivedAt, kind, text, image? }`.
+  - `kind` es `IMAGE` (con `image: { mimeType, base64 }` y la leyenda en `text`), `TEXT` o `UNSUPPORTED`.
+  - Una foto de más de 10 MB, o que no se pudo descargar, va como `UNSUPPORTED`, y recaudo le pide al vendedor que la reenvíe.
+- Solo los `INBOUND`: lo que Daniel escribe desde el teléfono no va a recaudo. En un álbum llega un mensaje por foto. El contenedor del álbum y los chats `@lid` sin número de teléfono no se reenvían, porque recaudo identifica al vendedor por su número.
+- Se ignora lo mismo que para PERLA, incluido el chat con `WHATSAPP_TO_NUMBER`. **Ojo:** desde tu número personal no puedes probar el envío de recibos.
+- Reintentos: `5xx` o sin respuesta en 10 s → a 1 s, 5 s y 30 s, y luego se descarta con un log. `400` y `401` no se reintentan. La foto se descarga una sola vez, dentro de la cola del chat, y los mensajes de un mismo chat llegan en orden.
+- **Consecuencia:** cualquier persona que escriba al número le llega a recaudo. recaudo solo contesta a los vendedores registrados, y deja a los demás en su log.
 
 ## Deploy
 

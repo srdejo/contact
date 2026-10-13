@@ -4,7 +4,7 @@ Estado real de la arquitectura de `contact-api`. No aspiracional.
 
 ## Visión general
 
-Servicio HTTP **interno** (solo loopback, ver `DECISIONS.md` 2026-09-05) con tres propósitos: (1) recibir un mensaje de contacto y notificarlo por dos canales (email y WhatsApp), sin persistencia; (2) desde 2026-08-24, exponer un envío de email genérico para otros servicios del mismo servidor; (3) desde 2026-09-25, ser el conector de WhatsApp de PERLA: le reenvía lo que llega al número de Baileys y le deja responder por `POST /api/whatsapp/send`.
+Servicio HTTP **interno** (solo loopback, ver `DECISIONS.md` 2026-09-05) con tres propósitos: (1) recibir un mensaje de contacto y notificarlo por dos canales (email y WhatsApp), sin persistencia; (2) desde 2026-08-24, exponer un envío de email genérico para otros servicios del mismo servidor; (3) desde 2026-09-25, ser el conector de WhatsApp de PERLA: le reenvía lo que llega al número de Baileys y le deja responder por `POST /api/whatsapp/send`; (4) desde 2026-10-13, ser también el conector de recaudo, con el mismo mecanismo y la misma sesión, para las fotos de los recibos de los vendedores.
 
 ```
 Otro servicio del mismo host (127.0.0.1)
@@ -28,24 +28,31 @@ PERLA (127.0.0.1:8084)
         │                    ▼
         │           whatsapp.events.js (INBOUND / OWNER / se ignora)
         │                    │
-        └──── perla.client.js ── POST PERLA_EVENTS_URL + X-Perla-Channel-Secret (saliente)
+        ├──── perla.client.js ── POST PERLA_EVENTS_URL + X-Perla-Channel-Secret (saliente)
+        │
+        └──── recaudo.events.js (solo INBOUND con número) ──► recaudo.client.js
+                 └─ descarga la foto ── POST RECAUDO_EVENTS_URL + X-Recaudo-Channel-Secret (saliente)
+
+recaudo (127.0.0.1:8095) responde por el mismo POST /api/whatsapp/send { jid, text }
 ```
 
 ## Componentes
 
-- **`src/server.js`** — solo composición y tabla de rutas: crea los clientes, los envuelve en servicios (`emailService`, `gmailService`, `whatsappService`) y se los pasa a los controladores. Define `requireLocalhost` (rechaza con `403` si `req.socket.remoteAddress` no es loopback), que protege todas las rutas salvo `/health`. Crea el cliente de PERLA solo si `PERLA_EVENTS_URL` tiene valor.
+- **`src/server.js`** — solo composición y tabla de rutas: crea los clientes, los envuelve en servicios (`emailService`, `gmailService`, `whatsappService`) y se los pasa a los controladores. Define `requireLocalhost` (rechaza con `403` si `req.socket.remoteAddress` no es loopback), que protege todas las rutas salvo `/health`. Crea el cliente de PERLA solo si `PERLA_EVENTS_URL` tiene valor, y el de recaudo solo si `RECAUDO_EVENTS_URL` tiene valor.
 - **`src/controllers/`** — una implementación por endpoint, cada una una fábrica que recibe su servicio para poder probarla con un doble:
   - `contact.controller.js` — `POST /api/contact`: valida, escapa el HTML del correo y notifica por email y WhatsApp con `try/catch` independiente por canal (`200`/`207`/`400`).
   - `gmail.controller.js` — `POST /api/send`: reenvía el payload a Gmail (`200`/`400`/`502`).
   - `whatsapp.controller.js` — `POST /api/whatsapp/send` (destino `jid` o `phone`, `200`/`400`/`502`) y `GET /api/whatsapp/status`.
 - **`src/clients/resend.client.js`** — wrapper sobre el SDK de Resend, usa `RESEND_API_KEY`, `MAIL_FROM`, `MAIL_TO`. Solo lo usa `/api/contact`. Ojo: el SDK de Resend **no lanza excepción** cuando falla — devuelve `{ data, error }`; el cliente lo traduce a excepción para que el fallo se refleje en el `207`.
 - **`src/clients/gmail.client.js`** — wrapper sobre `nodemailer` (transporte `gmail`), usa `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `GMAIL_FROM`. Solo lo usa `/api/send` — se eligió Gmail en vez de Resend para este endpoint porque sus consumidores (`hotel-backend`, `consulting`) no tenían un dominio propio verificado en Resend (ver `docs/DECISIONS.md`).
-- **`src/clients/whatsapp.client.js`** — `createWhatsAppClient(...)`: cliente de WhatsApp sobre `@whiskeysockets/baileys`. Mantiene un socket vivo y una máquina de estados (`DISCONNECTED` / `QR_REQUIRED` / `CONNECTED`) con reconexión automática a los 3 s, salvo `loggedOut`. La sesión se guarda en `data/whatsapp/auth/`. Expone `connect()`, `sendMessage({ jid, phone, text })`, `getStatus()`, `isConnected()`.
+- **`src/clients/whatsapp.client.js`** — `createWhatsAppClient(...)`: cliente de WhatsApp sobre `@whiskeysockets/baileys`. Mantiene un socket vivo y una máquina de estados (`DISCONNECTED` / `QR_REQUIRED` / `CONNECTED`) con reconexión automática a los 3 s, salvo `loggedOut`. La sesión se guarda en `data/whatsapp/auth/`. Expone `connect()`, `sendMessage({ jid, phone, text })`, `downloadImage(message)` (la imagen de un mensaje recibido, con la resubida que pide Baileys si WhatsApp ya la borró), `getStatus()` e `isConnected()`.
   - Cada envío genera su ID **antes** de llamar a Baileys y lo registra 15 minutos como "enviado por la API": el eco de ese mensaje puede llegar antes de que el envío resuelva y no debe confundirse con Daniel escribiendo desde el teléfono.
-  - En `messages.upsert` de tipo `notify` pasa cada mensaje por `toPerlaEvent` y entrega los reenviables a `onMessage` sin esperar.
+  - En `messages.upsert` de tipo `notify` pasa cada mensaje por `toPerlaEvent` y entrega los reenviables a `onMessage(event, message)` sin esperar. El mensaje de Baileys va también, para descargar su imagen.
   - Es una fábrica (socket y estado de autenticación inyectables) para probar el caso del eco con un doble, sin red ni disco.
 - **`src/clients/whatsapp.events.js`** — `toPerlaEvent(message, ...)`: función pura que traduce un mensaje de Baileys al evento del contrato D1 de PERLA, o `null` si se ignora (grupos, difusiones, estados, newsletters, llamadas, reacciones, ediciones y borrados, mensajes sin contenido, el número de `WHATSAPP_TO_NUMBER`, "Mensaje a mí mismo" y los ecos de envíos de la API). Prefiere el JID de teléfono sobre el `@lid`.
 - **`src/clients/perla.client.js`** — `createPerlaClient(...)`: `POST` a `PERLA_EVENTS_URL` con `X-Perla-Channel-Secret`. Reintenta `5xx` y la falta de respuesta (timeout de 10 s) a 1 s, 5 s y 30 s, y luego descarta con log; `400`/`401`/`404`/`503` (y cualquier otro `4xx`) no se reintentan. Encola por chat para conservar el orden.
+- **`src/clients/recaudo.events.js`** — `toRecaudoMessage(event, message)`: función pura que, a partir del evento ya clasificado por `toPerlaEvent`, arma el mensaje del contrato D2 de recaudo, o `null` si no va (`OWNER`, `@lid` sin número, contenedor de álbum). Marca `IMAGE` con su tipo, leyenda y tamaño.
+- **`src/clients/recaudo.client.js`** — `createRecaudoClient(...)`: encola por chat, descarga la foto dentro de la cola (hasta 10 MB; si no, `UNSUPPORTED`) y hace `POST` a `RECAUDO_EVENTS_URL` con `X-Recaudo-Channel-Secret`. Los mismos reintentos que PERLA; `400` y `401` no se reintentan.
 - **`src/utils/escape-html.js`** — `escaparHtml()`, usado por el correo de `/api/contact`.
 
 ## Manejo de errores

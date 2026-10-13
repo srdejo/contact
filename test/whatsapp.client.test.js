@@ -287,3 +287,48 @@ test('sin onMessage no se clasifica ni se reenvia nada', async () => {
     )
   );
 });
+
+test('onMessage recibe también el mensaje de Baileys, para descargar su imagen', async () => {
+  const socket = socketFalso();
+  const recibidos = [];
+  await clienteConectado(socket, { onMessage: (...args) => recibidos.push(args) });
+  const foto = {
+    key: { id: 'FOTO1', fromMe: false, remoteJid: '573007046858@s.whatsapp.net' },
+    message: { imageMessage: { mimetype: 'image/jpeg' } },
+    messageTimestamp: 1790367303,
+  };
+
+  upsert(socket, 'notify', foto);
+
+  assert.equal(recibidos.length, 1);
+  assert.equal(recibidos[0][0].messageId, 'FOTO1');
+  assert.equal(recibidos[0][1], foto);
+});
+
+test('downloadImage descarga con la sesión actual y le deja pedir la resubida', async () => {
+  const socket = socketFalso();
+  socket.logger = { nombre: 'logger de baileys' };
+  socket.updateMediaMessage = async () => {};
+  const llamadas = [];
+  const cliente = await clienteConectado(socket, {
+    downloadMedia: async (...args) => {
+      llamadas.push(args);
+      return Buffer.from('foto');
+    },
+  });
+  const foto = { key: { id: 'FOTO1' } };
+
+  const imagen = await cliente.downloadImage(foto);
+
+  assert.equal(imagen.toString(), 'foto');
+  assert.equal(llamadas[0][0], foto);
+  assert.equal(llamadas[0][1], 'buffer');
+  assert.equal(llamadas[0][3].logger, socket.logger);
+  assert.equal(llamadas[0][3].reuploadRequest, socket.updateMediaMessage);
+});
+
+test('downloadImage sin conexión falla', async () => {
+  const cliente = createWhatsAppClient({ downloadMedia: async () => Buffer.from('x') });
+
+  await assert.rejects(() => cliente.downloadImage({}), /no está conectado/);
+});

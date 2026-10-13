@@ -1,5 +1,6 @@
 import makeWASocket, {
   DisconnectReason,
+  downloadMediaMessage,
   generateMessageIDV2,
   jidNormalizedUser,
   useMultiFileAuthState,
@@ -28,8 +29,9 @@ const SENT_ID_TTL_MS = 15 * 60 * 1000;
  *
  * Es una fabrica para que las pruebas puedan inyectar un socket falso (el caso
  * del eco necesita que el `upsert` llegue antes de que `sendMessage` resuelva)
- * sin tocar disco ni red. `onMessage` recibe solo los eventos ya clasificados
- * como reenviables a PERLA; el cliente no sabe nada de HTTP.
+ * sin tocar disco ni red. `onMessage(event, message)` recibe solo los eventos
+ * ya clasificados como reenviables, y el mensaje de Baileys del que salieron
+ * (para descargar su imagen); el cliente no sabe nada de HTTP.
  */
 export function createWhatsAppClient({
   makeSocket = makeWASocket,
@@ -37,6 +39,7 @@ export function createWhatsAppClient({
   onMessage,
   isIgnoredNumber = () => false,
   now = () => Date.now(),
+  downloadMedia = downloadMediaMessage,
 } = {}) {
   let socket = null;
   let connectionStatus = 'DISCONNECTED';
@@ -183,7 +186,7 @@ export function createWhatsAppClient({
 
       // El reenvio no debe cortar la recepcion de los demas mensajes.
       try {
-        onMessage(perlaEvent);
+        onMessage(perlaEvent, message);
       } catch (error) {
         console.error(
           'Error reenviando mensaje de WhatsApp:',
@@ -192,6 +195,19 @@ export function createWhatsAppClient({
         );
       }
     }
+  }
+
+  // La imagen de un mensaje recibido, como Buffer. Si WhatsApp ya borro el
+  // archivo de su servidor, Baileys le pide al telefono que lo vuelva a subir.
+  async function downloadImage(message) {
+    if (!socket) {
+      throw new Error('WhatsApp no está conectado');
+    }
+
+    return downloadMedia(message, 'buffer', {}, {
+      logger: socket.logger,
+      reuploadRequest: socket.updateMediaMessage,
+    });
   }
 
   function isConnected() {
@@ -226,6 +242,7 @@ export function createWhatsAppClient({
   return {
     connect,
     sendMessage,
+    downloadImage,
     getStatus,
     isConnected,
   };
