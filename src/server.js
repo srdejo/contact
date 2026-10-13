@@ -92,8 +92,24 @@ if (recaudoEventsUrl) {
   });
 }
 
+// El numero personal de Daniel (WHATSAPP_TO_NUMBER) no es un contacto para
+// PERLA: no le contesta. Para recaudo si puede ser un vendedor, y recaudo ya
+// atiende solo a los vendedores registrados. Se lee en cada mensaje, igual que
+// en /api/contact.
+function isPersonalChat(jid) {
+  const personal = String(process.env.WHATSAPP_TO_NUMBER ?? '').replace(/\D/g, '');
+
+  return (
+    personal !== '' &&
+    Boolean(jid?.endsWith('@s.whatsapp.net')) &&
+    jid.split('@')[0].split(':')[0] === personal
+  );
+}
+
 function forwardMessage(event, message) {
-  perlaClient?.forward(event);
+  if (!isPersonalChat(event.jid)) {
+    perlaClient?.forward(event);
+  }
 
   const recaudoMessage = recaudoClient ? toRecaudoMessage(event, message) : null;
 
@@ -104,12 +120,6 @@ function forwardMessage(event, message) {
 
 const whatsappClient = createWhatsAppClient({
   onMessage: perlaClient || recaudoClient ? forwardMessage : undefined,
-  // Se lee en cada mensaje, igual que en /api/contact.
-  isIgnoredNumber: (digits) => {
-    const personal = String(process.env.WHATSAPP_TO_NUMBER ?? '').replace(/\D/g, '');
-
-    return personal !== '' && personal === digits;
-  },
 });
 
 const whatsappService = {
