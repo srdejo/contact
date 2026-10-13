@@ -2,6 +2,8 @@ import makeWASocket, {
   DisconnectReason,
   downloadMediaMessage,
   generateMessageIDV2,
+  isLidUser,
+  isPnUser,
   jidNormalizedUser,
   useMultiFileAuthState,
 } from '@whiskeysockets/baileys';
@@ -174,27 +176,61 @@ export function createWhatsAppClient({
       .map((jid) => jidNormalizedUser(jid));
 
     for (const message of event.messages) {
-      const perlaEvent = toPerlaEvent(message, {
-        isSentByApi,
-        isIgnoredNumber,
-        ownJids,
-      });
-
-      if (!perlaEvent) {
-        continue;
-      }
-
-      // El reenvio no debe cortar la recepcion de los demas mensajes.
-      try {
-        onMessage(perlaEvent, message);
-      } catch (error) {
-        console.error(
-          'Error reenviando mensaje de WhatsApp:',
-          perlaEvent.messageId,
-          error.message
-        );
+      if (needsPhoneLookup(message.key)) {
+        withPhoneJid(message).then((resolved) => forward(resolved, ownJids));
+      } else {
+        forward(message, ownJids);
       }
     }
+  }
+
+  function forward(message, ownJids) {
+    const perlaEvent = toPerlaEvent(message, {
+      isSentByApi,
+      isIgnoredNumber,
+      ownJids,
+    });
+
+    if (!perlaEvent) {
+      return;
+    }
+
+    // El reenvio no debe cortar la recepcion de los demas mensajes.
+    try {
+      onMessage(perlaEvent, message);
+    } catch (error) {
+      console.error(
+        'Error reenviando mensaje de WhatsApp:',
+        perlaEvent.messageId,
+        error.message
+      );
+    }
+  }
+
+  // WhatsApp puede entregar el chat solo como @lid, sin el numero al lado.
+  // Baileys guarda la relacion lid -> numero (lid-mapping-*): con ella el chat
+  // se identifica por el numero, que es lo que conocen recaudo (el vendedor) y
+  // la lista de numeros ignorados. Si no la conoce, el mensaje sigue como @lid.
+  async function withPhoneJid(message) {
+    let phoneJid = null;
+
+    try {
+      phoneJid = await socket?.signalRepository?.lidMapping?.getPNForLID(
+        message.key.remoteJid
+      );
+    } catch (error) {
+      console.error(
+        'No se pudo resolver el número del @lid:',
+        message.key.remoteJid,
+        error.message
+      );
+    }
+
+    if (!phoneJid || !isPnUser(phoneJid)) {
+      return message;
+    }
+
+    return { ...message, key: { ...message.key, remoteJidAlt: phoneJid } };
   }
 
   // La imagen de un mensaje recibido, como Buffer. Si WhatsApp ya borro el
@@ -246,6 +282,15 @@ export function createWhatsAppClient({
     getStatus,
     isConnected,
   };
+}
+
+// Un @lid sin numero alternativo (remoteJidAlt o senderPn).
+function needsPhoneLookup(key) {
+  return (
+    isLidUser(key?.remoteJid) &&
+    !isPnUser(key?.remoteJidAlt) &&
+    !isPnUser(key?.senderPn)
+  );
 }
 
 function normalizePhone(phone) {

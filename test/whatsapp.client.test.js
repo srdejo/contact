@@ -332,3 +332,56 @@ test('downloadImage sin conexión falla', async () => {
 
   await assert.rejects(() => cliente.downloadImage({}), /no está conectado/);
 });
+
+test('un chat que llega solo como @lid se reenvia con el numero que Baileys conoce', async () => {
+  const socket = socketFalso();
+  const consultados = [];
+  socket.signalRepository = {
+    lidMapping: {
+      async getPNForLID(lid) {
+        consultados.push(lid);
+        return '573127655754:0@s.whatsapp.net';
+      },
+    },
+  };
+  const recibidos = [];
+  await clienteConectado(socket, { onMessage: (evento) => recibidos.push(evento) });
+
+  upsert(socket, 'notify', mensajeTexto({ id: 'L1', remoteJid: '142060388622446@lid' }));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(consultados, ['142060388622446@lid']);
+  assert.equal(recibidos.length, 1);
+  assert.equal(recibidos[0].jid, '573127655754@s.whatsapp.net');
+});
+
+test('un @lid sin numero conocido sigue como @lid', async () => {
+  const socket = socketFalso();
+  socket.signalRepository = { lidMapping: { getPNForLID: async () => null } };
+  const recibidos = [];
+  await clienteConectado(socket, { onMessage: (evento) => recibidos.push(evento) });
+
+  upsert(socket, 'notify', mensajeTexto({ id: 'L2', remoteJid: '142060388622446@lid' }));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(recibidos.length, 1);
+  assert.equal(recibidos[0].jid, '142060388622446@lid');
+});
+
+test('un @lid que ya trae el numero no consulta a Baileys', async () => {
+  const socket = socketFalso();
+  socket.signalRepository = {
+    lidMapping: {
+      getPNForLID: async () => assert.fail('no debia consultar'),
+    },
+  };
+  const recibidos = [];
+  await clienteConectado(socket, { onMessage: (evento) => recibidos.push(evento) });
+  const mensaje = mensajeTexto({ id: 'L3', remoteJid: '142060388622446@lid' });
+  mensaje.key.remoteJidAlt = '573127655754@s.whatsapp.net';
+
+  upsert(socket, 'notify', mensaje);
+
+  assert.equal(recibidos.length, 1);
+  assert.equal(recibidos[0].jid, '573127655754@s.whatsapp.net');
+});
