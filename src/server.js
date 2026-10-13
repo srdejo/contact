@@ -153,6 +153,7 @@ app.post('/api/whatsapp/send', requireLocalhost, whatsappController.send);
 app.post('/api/send', requireLocalhost, gmailController.send);
 
 const port = process.env.PORT || 3000;
+const whatsappEnabled = process.env.WHATSAPP_ENABLED !== 'false';
 
 // Servicio interno: escucha SOLO en loopback. Los consumidores son otros
 // servicios del mismo servidor (nolost, hotel-backend, consulting, micasachurch),
@@ -164,6 +165,11 @@ app.listen(port, host, async () => {
   console.log(
     `Contact API escuchando en http://${host}:${port} (solo loopback)`
   );
+
+  if (!whatsappEnabled) {
+    console.log('WhatsApp desactivado (WHATSAPP_ENABLED=false)');
+    return;
+  }
 
   try {
     await whatsappClient.connect();
