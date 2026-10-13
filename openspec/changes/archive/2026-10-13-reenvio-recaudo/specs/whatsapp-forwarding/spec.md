@@ -14,7 +14,7 @@ Con el reenvío encendido, cada mensaje SHALL enviarse como `POST <RECAUDO_EVENT
 - **THEN** `contact` hace `POST` a esa URL con la cabecera `X-Recaudo-Channel-Secret: s3cr3t`
 
 ### Requirement: Qué se reenvía a recaudo y con qué forma
-A recaudo SHALL ir solo lo que el reenvío a PERLA dejaría pasar (los mismos filtros de "Qué se ignora sin reenviar") y, además, solo los mensajes `INBOUND` de un chat con número de teléfono. El contenedor de un álbum SHALL no reenviarse: sus fotos llegan como mensajes separados.
+A recaudo SHALL ir solo lo que el reenvío a PERLA dejaría pasar (los mismos filtros de "Qué se ignora sin reenviar"), salvo el número de `WHATSAPP_TO_NUMBER`, y, además, solo los mensajes `INBOUND` de un chat con número de teléfono. El número personal SHALL seguir ignorándose para PERLA, pero SHALL llegar a recaudo: Daniel también puede ser vendedor, y recaudo atiende solo a los vendedores registrados. El contenedor de un álbum SHALL no reenviarse: sus fotos llegan como mensajes separados.
 
 El cuerpo SHALL ser `{ messageId, jid, phone, receivedAt, kind, text, image? }`:
 - `phone`: los dígitos del JID de teléfono del chat;
@@ -41,8 +41,12 @@ Una foto de más de 10 MB, o que no se pudo descargar, SHALL enviarse como `UNSU
 - **WHEN** Daniel escribe desde el teléfono del número a un chat
 - **THEN** no se reenvía nada a recaudo
 
+#### Scenario: Foto desde el número personal
+- **WHEN** `WHATSAPP_TO_NUMBER` es 573127655754 y ese número manda una foto
+- **THEN** recaudo recibe el mensaje `IMAGE` con `phone` `573127655754`, y PERLA no recibe nada
+
 #### Scenario: Chat sin número
-- **WHEN** llega una foto de un chat `@lid` sin JID de teléfono alternativo
+- **WHEN** llega una foto de un chat `@lid` sin JID de teléfono alternativo y Baileys no conoce el número de ese `@lid`
 - **THEN** no se reenvía nada a recaudo
 
 ### Requirement: Respuestas de recaudo y reintentos
@@ -60,3 +64,20 @@ La foto SHALL descargarse una sola vez por mensaje, aunque haya reintentos. Los 
 #### Scenario: Dos fotos seguidas
 - **WHEN** un vendedor manda la foto A y luego la B, y la descarga de A tarda más
 - **THEN** recaudo recibe A antes que B
+
+## MODIFIED Requirements
+
+### Requirement: JID de teléfono antes que @lid
+Cuando el mensaje identifica al interlocutor con un JID `@lid` y además trae su JID de teléfono (`remoteJidAlt` o `senderPn`), el evento SHALL llevar el JID de teléfono. Si solo trae el `@lid`, el número SHALL buscarse en la relación `@lid` → número que Baileys guarda en la sesión (`lid-mapping-*`); si la conoce, el evento SHALL llevar ese JID de teléfono, y si no, SHALL llevar el `@lid`.
+
+#### Scenario: @lid con JID de teléfono alternativo
+- **WHEN** llega un mensaje con `remoteJid` `123456789012345@lid` y `remoteJidAlt` `573001234567@s.whatsapp.net`
+- **THEN** el evento lleva `jid` `573001234567@s.whatsapp.net`, sin consultar la relación de Baileys
+
+#### Scenario: Solo @lid, con el número conocido por Baileys
+- **WHEN** llega un mensaje con `remoteJid` `142060388622446@lid` sin JID de teléfono alternativo, y Baileys relaciona ese `@lid` con 573127655754
+- **THEN** el evento lleva `jid` `573127655754@s.whatsapp.net`
+
+#### Scenario: Solo @lid
+- **WHEN** llega un mensaje con `remoteJid` `123456789012345@lid` sin JID de teléfono alternativo, y Baileys no conoce su número
+- **THEN** el evento lleva `jid` `123456789012345@lid`

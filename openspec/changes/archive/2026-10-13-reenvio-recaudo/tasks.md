@@ -10,4 +10,4 @@
 ## 2. Documentación y despliegue
 
 - [x] 2.1 `.env.example`, README ("Reenvío a recaudo"), `docs/ARCHITECTURE.md`, `docs/DECISIONS.md` (el número deja de ser solo de PERLA) y `docs/DEPLOYMENT.md` (encendido y rollback).
-- [ ] 2.2 En el VPS, con recaudo desplegado: `PERLA_EVENTS_URL` vacía, `RECAUDO_EVENTS_URL` y `RECAUDO_CHANNEL_SECRET`, reinicio de `nolost-contact`. Verificar con la foto de un recibo desde el teléfono de un vendedor registrado.
+- [x] 2.2 *(Hecho el 2026-10-13. La sesión estaba cerrada desde el 12/10 y se volvió a vincular con QR. La foto de Daniel, que también es vendedor, llegó a recaudo y se aceptó; después se probaron un duplicado y un lote. Salieron y se corrigieron dos cosas, ya recogidas en la spec: el `@lid` sin número se resuelve con la relación de Baileys, y `WHATSAPP_TO_NUMBER` solo se ignora para PERLA.)* En el VPS, con recaudo desplegado: `PERLA_EVENTS_URL` vacía, `RECAUDO_EVENTS_URL` y `RECAUDO_CHANNEL_SECRET`, reinicio de `nolost-contact`. Verificar con la foto de un recibo desde el teléfono de un vendedor registrado.
