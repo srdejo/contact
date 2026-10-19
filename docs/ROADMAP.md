@@ -12,6 +12,11 @@ tarea fue verificada**, no cuando el código existe. Cada línea dice con qué s
 verificó y cuándo. Las secciones de "mejoras futuras" son backlog declarado y no
 cuentan para el porcentaje.
 
+## Objetivo actual: WhatsApp en servicio
+
+**Criterio de cierre**: el servicio envía WhatsApp por Baileys en producción con su sesión persistida.
+**Alcance**: Etapa 3
+
 ## Etapa 1 — Formulario público de contacto ✅
 
 **Criterio de cierre**: `POST /api/contact` acepta el formulario, notifica por los
